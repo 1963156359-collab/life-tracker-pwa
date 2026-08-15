@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>生活记录 · 本地离线自用</title>
+<!-- ===== PWA 声明（manifest / 图标 / 独立窗口） ===== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f6ef7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="生活记录">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* =========================================================================
+   样式说明：
+   本应用完全离线、零网络请求，因此不引用任何 CDN（原需求里的 Tailwind CDN
+   需要联网才能加载，违背“禁止网络请求”约束）。这里手写一套精简的
+   “Tailwind 风格”工具类 CSS：改外观只需要调整 :root 里的变量或对应类名。
+   ========================================================================= */
+:root{
+  --bg:#f3f4f6; --card:#ffffff; --border:#e5e7eb;
+  --text:#111827; --muted:#6b7280;
+  --accent:#4f6ef7; --accent-strong:#3b5bdb;
+  --danger:#dc2626; --danger-soft:#fef2f2; --danger-border:#fecaca;
+  --ok-soft:#dcfce7; --ok-text:#166534;
+  --down-soft:#fee2e2; --down-text:#991b1b;
+  --radius:12px;
+  --shadow:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  font-family: system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px; line-height:1.6;
+}
+.wrap{ max-width:1080px; margin:0 auto; padding:24px 16px 72px; }
+.app-header{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+.brand h1{ font-size:22px; font-weight:700; }
+.hint{ font-size:12px; color:var(--muted); }
+.date-nav{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.date-input{ flex:0 0 auto; }
+.grid-modules{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+.card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 18px; }
+.card h2{ font-size:15px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.form-row{ display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+.input{ flex:1; min-width:120px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:#fff; color:var(--text); }
+.input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,110,247,.16); }
+.btn{ padding:8px 14px; border-radius:8px; border:1px solid transparent; font-size:14px; cursor:pointer; background:#eef0f4; color:var(--text); white-space:nowrap; transition:filter .12s, background .12s; }
+.btn:hover{ filter:brightness(.96); }
+.btn:active{ filter:brightness(.92); }
+.btn-primary{ background:var(--accent); color:#fff; }
+.btn-primary:hover{ background:var(--accent-strong); filter:none; }
+.btn-danger{ background:var(--danger-soft); color:var(--danger); border-color:var(--danger-border); }
+.btn-ghost{ background:transparent; color:var(--muted); border-color:var(--border); }
+.list{ display:flex; flex-direction:column; gap:8px; max-height:360px; overflow-y:auto; }
+.item{ display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fafbfc; }
+.item .grow{ flex:1; min-width:0; word-break:break-all; }
+.item .date{ color:var(--muted); font-size:12px; white-space:nowrap; }
+.item .del{ flex:0 0 auto; color:var(--muted); background:none; border:none; cursor:pointer; font-size:15px; padding:2px 8px; border-radius:6px; }
+.item .del:hover{ color:var(--danger); background:var(--danger-soft); }
+.tag{ font-size:12px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+.tag-up{ background:var(--ok-soft); color:var(--ok-text); }
+.tag-down{ background:var(--down-soft); color:var(--down-text); }
+.tag-flat{ background:#eef0f4; color:var(--muted); }
+.check-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; cursor:pointer; user-select:none; }
+.check-row:hover{ background:#fafbfc; }
+.check-row input[type=checkbox]{ width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
+.check-row .state{ margin-left:auto; font-size:12px; color:var(--muted); }
+.empty{ color:var(--muted); font-size:13px; padding:14px; text-align:center; border:1px dashed var(--border); border-radius:8px; }
+.plan-done{ text-decoration:line-through; color:var(--muted); }
+.backup-section{ margin-top:18px; }
+.backup-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+.stats{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.7; }
+footer{ text-align:center; color:var(--muted); font-size:12px; margin-top:30px; }
+#toast{ position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(16px); background:#111827; color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none; transition:all .25s ease; z-index:99; max-width:90vw; }
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+@media (max-width:680px){
+  .app-header{ flex-direction:column; align-items:flex-start; }
+  .grid-modules{ grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 顶栏：标题 + 日期切换（四个模块都按这个日期录入/查看） ===== -->
+  <header class="app-header">
+    <div class="brand">
+      <h1>📒 生活记录</h1>
+      <p class="hint">纯本地离线自用 · 体重 / 资产 / 计划 / 健康打卡</p>
+    </div>
+    <div class="date-nav">
+      <button class="btn btn-ghost" id="btn-prev" title="前一天">‹</button>
+      <input type="date" class="input date-input" id="date-input">
+      <button class="btn btn-ghost" id="btn-next" title="后一天">›</button>
+      <button class="btn" id="btn-today">今天</button>
+    </div>
+  </header>
+
+  <!-- ===== 四大记录模块 ===== -->
+  <section class="grid-modules">
+
+    <!-- ① 体重记录：每天一条，重复录入会弹出覆盖确认；历史列表全量倒序展示 -->
+    <div class="card">
+      <h2>① 体重记录 <span class="hint" id="weight-date-hint"></span></h2>
+      <form class="form-row" id="weight-form" autocomplete="off">
+        <input class="input" id="weight-input" type="number" step="0.1" min="0" placeholder="体重 (kg)，如 65.2" required>
+        <button class="btn btn-primary" type="submit">保存</button>
+      </form>
+      <div class="list" id="weight-list"></div>
+    </div>
+
+    <!-- ② 存款/资产记录：每次保存一条“当前总金额 + 备注”的快照，自动计算与上一条的变动差额 -->
+    <div class="card">
+      <h2>② 存款/资产记录 <span class="hint" id="asset-date-hint"></span></h2>
+      <form class="form-row" id="asset-form" autocomplete="off">
+        <input class="input" id="asset-input" type="number" step="0.01" placeholder="当前总金额 (元)" required>
+        <input class="input" id="asset-note" type="text" maxlength="200" placeholder="备注（可选）">
+        <button class="btn btn-primary" type="submit">保存</button>
+      </form>
+      <div class="list" id="asset-list"></div>
+    </div>
+
+    <!-- ③ 今日计划：按日期存待办，可新增 / 勾选完成 / 删除 -->
+    <div class="card">
+      <h2>③ 今日计划 <span class="hint" id="plan-date-hint"></span></h2>
+      <form class="form-row" id="plan-form" autocomplete="off">
+        <input class="input" id="plan-input" type="text" maxlength="200" placeholder="新增一条待办…" required>
+        <button class="btn btn-primary" type="submit">添加</button>
+      </form>
+      <div class="list" id="plan-list"></div>
+      <p class="stats" id="plan-stats"></p>
+    </div>
+
+    <!-- ④ 健康打卡：两个布尔项，勾选即按日期保存 -->
+    <div class="card">
+      <h2>④ 健康打卡 <span class="hint" id="health-date-hint"></span></h2>
+      <label class="check-row">
+        <input type="checkbox" id="check-medicine">
+        <span>💊 是否抹药</span>
+        <span class="state" id="medicine-state"></span>
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="check-brush">
+        <span>🪥 是否刷牙</span>
+        <span class="state" id="brush-state"></span>
+      </label>
+      <p class="stats" id="health-stats"></p>
+    </div>
+  </section>
+
+  <!-- ===== 数据备份管理区：导出 / 导入 / 清空 ===== -->
+  <section class="card backup-section">
+    <h2>🛟 数据备份管理区</h2>
+    <div class="backup-actions">
+      <button class="btn btn-primary" id="btn-export">⬇ 导出备份 (JSON)</button>
+      <button class="btn" id="btn-import">⬆ 导入恢复 (JSON)</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+      <button class="btn btn-danger" id="btn-clear">🗑 清空全部数据</button>
+    </div>
+    <p class="stats" id="storage-stats"></p>
+  </section>
+
+  <footer>所有数据 100% 仅保存在本机浏览器（IndexedDB / localStorage 兜底），应用完全离线可用，无任何网络请求。</footer>
+</div>
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   生活记录 · 应用逻辑（原生 JavaScript，零依赖，零网络请求）
+
+   【数据模型】按天一条记录 record，结构如下 ——
+     record = {
+       date:   'YYYY-MM-DD',                     // 日期（主键）
+       weight: 65.2 | null,                      // 当天体重（kg），每天一条，重复录入覆盖
+       assets: [ { id, amount, note, ts } ],     // 当天资产快照，可多条；amount 为当前总金额
+       plans:  [ { id, text, done } ],           // 当天待办清单
+       health: { medicine:bool, brush:bool }     // 当天健康打卡：抹药 / 刷牙
+     }
+
+   【存储】优先 IndexedDB；若浏览器不支持（例如部分环境直接双击 file:// 打开），
+           自动回退到 localStorage。两种方式都 100% 本地，绝不联网。
+
+   【修改字段指南】想增加/修改记录字段：① 改 emptyRecord 与 sanitizeRecord；
+            ② 在对应表单/渲染函数里增删代码；③ 备份格式随 sanitize 自动兼容。
+   ===================================================================== */
+(function () {
+'use strict';
+
+/* ---------- 工具函数 ---------- */
+const $ = (sel, el) => (el || document).querySelector(sel);
+const pad2 = n => String(n).padStart(2, '0');
+const toDateStr = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const todayStr = () => toDateStr(new Date());
+const parseDateStr = s => { const p = String(s).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+const shiftDate = (s, delta) => { const d = parseDateStr(s); d.setDate(d.getDate() + delta); return toDateStr(d); };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const round2 = n => Math.round(Number(n) * 100) / 100;
+const fmtMoney = n => Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+const fmtTs = ts => { const d = new Date(ts); return toDateStr(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+/* HTML 转义，防止备注/计划文本里的特殊字符破坏页面 */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- 轻提示 toast ---------- */
+let toastTimer = null;
+function toast(msg) {
+  if (typeof document === 'undefined') return;      // 非浏览器环境（自动测试）时忽略
+  const el = $('#toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ---------- 空记录模板 / 内容判断 ---------- */
+const emptyRecord = date => ({
+  date, weight: null, assets: [], plans: [],
+  health: { medicine: false, brush: false }
+});
+/* 一条记录是否真的存有内容（用于自动清理“空壳”记录，保持存储干净） */
+function hasContent(rec) {
+  return rec.weight !== null || rec.assets.length > 0 || rec.plans.length > 0 ||
+         rec.health.medicine || rec.health.brush;
+}
+
+/* =====================================================================
+   存储层：IndexedDB 优先，localStorage 兜底
+   对外统一接口：readAll / putRecord / deleteRecord / clearAll
+   ===================================================================== */
+const LS_KEY = 'life-tracker-data-v1';   // localStorage 兜底用的键名
+const DB_NAME = 'life-tracker';          // IndexedDB 库名
+const STORE_NAME = 'records';            // 对象仓库名（以 date 为主键）
+let backend = 'idb';                     // 当前后端：'idb' | 'ls'
+let dbPromise = null;
+
+function openDB() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'date' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('IndexedDB 打开失败'));
+  });
+  return dbPromise;
+}
+function idbTx(mode) {
+  return openDB().then(db => db.transaction(STORE_NAME, mode).objectStore(STORE_NAME));
+}
+/* 初始化：探测 IndexedDB 是否可用，不可用则自动回退 localStorage */
+async function initStorage() {
+  if (typeof indexedDB !== 'undefined') {
+    try { await openDB(); backend = 'idb'; }
+    catch (e) { backend = 'ls'; console.warn('[生活记录] IndexedDB 不可用，已回退到 localStorage：', e); }
+  } else {
+    backend = 'ls';
+  }
+}
+function backendName() { return backend === 'idb' ? 'IndexedDB' : 'localStorage（兜底）'; }
+
+const Storage = {
+  /* 读取全部记录（数组） */
+  async readAll() {
+    if (backend === 'idb') {
+      const store = await idbTx('readonly');
+      return new Promise((resolve, reject) => {
+        const r = store.getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror = () => reject(r.error);
+      });
+    }
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+    catch (e) { return []; }
+  },
+  /* 写入/更新一条记录 */
+  async putRecord(rec) {
+    if (backend === 'idb') {
+      const store = await idbTx('readwrite');
+      return new Promise((resolve, reject) => {
+        const r = store.put(rec);
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+      });
+    }
+    const all = await this.readAll();
+    const i = all.findIndex(x => x.date === rec.date);
+    if (i >= 0) all[i] = rec; else all.push(rec);
+    localStorage.setItem(LS_KEY, JSON.stringify(all));
+  },
+  /* 删除某一天的全部记录 */
+  async deleteRecord(date) {
+    if (backend === 'idb') {
+      const store = await idbTx('readwrite');
+      return new Promise((resolve, reject) => {
+        const r = store.delete(date);
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+      });
+    }
+    const all = await this.readAll();
+    localStorage.setItem(LS_KEY, JSON.stringify(all.filter(x => x.date !== date)));
+  },
+  /* 清空全部数据 */
+  async clearAll() {
+    if (backend === 'idb') {
+      const store = await idbTx('readwrite');
+      return new Promise((resolve, reject) => {
+        const r = store.clear();
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+      });
+    }
+    localStorage.removeItem(LS_KEY);
+  }
+};
+
+/* =====================================================================
+   内存数据层：启动时把全量数据读入 DATA 数组，所有增删改都在内存完成，
+   并立即同步写回存储（每次改动即时落盘，刷新/退出不丢数据）。
+   ===================================================================== */
+let DATA = [];                                  // 全量记录数组
+function findRecord(date) { return DATA.find(r => r.date === date); }
+function getRecord(date) { return findRecord(date) || emptyRecord(date); }
+
+async function saveRecord(rec) {
+  const i = DATA.findIndex(r => r.date === rec.date);
+  if (i >= 0) DATA[i] = rec; else DATA.push(rec);
+  await Storage.putRecord(rec);
+}
+/* 保存后若记录变空，则整条删除，保持存储干净 */
+async function saveOrPrune(rec) {
+  if (hasContent(rec)) await saveRecord(rec);
+  else await removeRecord(rec.date);
+}
+async function removeRecord(date) {
+  DATA = DATA.filter(r => r.date !== date);
+  await Storage.deleteRecord(date);
+}
+
+/* ---------- 清洗/校验：统一记录结构，过滤非法字段（导入与启动加载共用） ---------- */
+function sanitizeRecord(r) {
+  const rec = emptyRecord(String(r.date || ''));
+  const w = Number(r.weight);
+  rec.weight = Number.isFinite(w) && w > 0 ? round2(w) : null;
+  if (Array.isArray(r.assets)) {
+    rec.assets = r.assets
+      .filter(a => a && Number.isFinite(Number(a.amount)))
+      .map(a => ({
+        id: String(a.id || uid()),
+        amount: round2(Number(a.amount)),
+        note: String(a.note || '').slice(0, 200),
+        ts: Number(a.ts) || Date.now()
+      }));
+  }
+  if (Array.isArray(r.plans)) {
+    rec.plans = r.plans
+      .filter(p => p && String(p.text || '').trim())
+      .map(p => ({
+        id: String(p.id || uid()),
+        text: String(p.text).trim().slice(0, 200),
+        done: !!p.done
+      }));
+  }
+  rec.health = { medicine: !!(r.health && r.health.medicine), brush: !!(r.health && r.health.brush) };
+  return rec;
+}
+
+/* =====================================================================
+   备份：导出 / 导入 / 清空（核心逻辑，与 UI 分离，便于测试）
+   ===================================================================== */
+/* 导出：把全量数据打包成可读 JSON 对象 */
+function buildExport() {
+  return {
+    app: 'life-tracker',                   // 应用标识，导入时校验
+    version: 1,                            // 备份格式版本
+    exportedAt: new Date().toISOString(),  // 导出时间
+    records: DATA.map(r => sanitizeRecord(r)).filter(hasContent)
+  };
+}
+/* 解析导入内容；返回 { ok, error? } 或 { ok:true, data: records[] } */
+function parseImport(text) {
+  let obj;
+  try { obj = JSON.parse(text); }
+  catch (e) { return { ok: false, error: '文件不是合法的 JSON，无法导入' }; }
+  if (!obj || obj.app !== 'life-tracker' || !Array.isArray(obj.records)) {
+    return { ok: false, error: '这不是本应用的备份文件（缺少 app/records 字段）' };
+  }
+  const records = obj.records
+    .filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || '')))
+    .map(sanitizeRecord)
+    .filter(hasContent);
+  return { ok: true, data: records };
+}
+/* 导入恢复：覆盖式。返回 { ok, error?, count? } */
+async function importBackup(text) {
+  const res = parseImport(text);
+  if (!res.ok) return res;
+  const sure = typeof confirm === 'function' &&
+    confirm('导入将覆盖当前全部数据（备份含 ' + res.data.length + ' 天的记录），确定继续吗？');
+  if (!sure) return { ok: false, error: '已取消导入' };
+  await Storage.clearAll();
+  DATA = [];
+  for (const rec of res.data) await saveRecord(rec);
+  return { ok: true, count: res.data.length };
+}
+/* 清空全部数据（带确认弹窗，防止误操作）。返回是否真正执行。 */
+async function requestClearAll() {
+  const sure = typeof confirm === 'function' &&
+    confirm('确定要清空全部数据吗？此操作不可恢复，建议先导出备份。');
+  if (!sure) return false;
+  await Storage.clearAll();
+  DATA = [];
+  return true;
+}
+/* 导出备份文件并下载（浏览器环境） */
+function downloadBackup() {
+  if (typeof document === 'undefined') return;
+  const obj = buildExport();
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '生活记录备份-' + todayStr() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  toast('备份已导出');
+}
+
+/* 对外暴露测试钩子（供自动验证脚本使用，不影响正常功能） */
+if (typeof window !== 'undefined') {
+  window.__LT__ = {
+    Storage, initStorage, backendName,
+    readAll: async () => DATA.slice(),
+    saveRecord, saveOrPrune, removeRecord, getRecord,
+    sanitizeRecord, hasContent,
+    buildExport, parseImport, importBackup, requestClearAll,
+    get DATA() { return DATA; }
+  };
+}
+
+/* =====================================================================
+   以下为浏览器 UI 部分（Node 测试环境没有 document 时直接跳过）
+   ===================================================================== */
+if (typeof document === 'undefined') return;
+
+/* ---------- DOM 引用 ---------- */
+const elDate = $('#date-input');
+const elWeightForm = $('#weight-form');
+const elWeightInput = $('#weight-input');
+const elWeightList = $('#weight-list');
+const elAssetForm = $('#asset-form');
+const elAssetInput = $('#asset-input');
+const elAssetNote = $('#asset-note');
+const elAssetList = $('#asset-list');
+const elPlanForm = $('#plan-form');
+const elPlanInput = $('#plan-input');
+const elPlanList = $('#plan-list');
+const elPlanStats = $('#plan-stats');
+const elCheckMedicine = $('#check-medicine');
+const elCheckBrush = $('#check-brush');
+const elHealthStats = $('#health-stats');
+const elStorageStats = $('#storage-stats');
+
+/* ---------- 当前选中日期（默认今天，可切换到历史日期回看/补录） ---------- */
+let currentDate = todayStr();
+
+/* ============ 渲染 ============ */
+/* ① 体重：全量历史，按日期倒序 */
+function renderWeight() {
+  $('#weight-date-hint').textContent = '录入日期：' + currentDate;
+  const items = DATA.filter(r => r.weight !== null).sort((a, b) => a.date < b.date ? 1 : -1);
+  if (!items.length) { elWeightList.innerHTML = '<div class="empty">暂无体重记录</div>'; return; }
+  elWeightList.innerHTML = items.map(r =>
+    '<div class="item"><span class="grow"><b>' + r.weight + '</b> kg</span>' +
+    '<span class="date">' + r.date + '</span>' +
+    '<button class="del" data-del-weight="' + r.date + '" title="删除">✕</button></div>'
+  ).join('');
+}
+
+/* ② 资产：全量快照，按 日期+时间 倒序；自动计算每条与上一条的变动差额 */
+function renderAssets() {
+  $('#asset-date-hint').textContent = '录入日期：' + currentDate;
+  const all = [];
+  for (const r of DATA) for (const a of r.assets) all.push({ date: r.date, id: a.id, amount: a.amount, note: a.note, ts: a.ts });
+  all.sort((x, y) => x.date === y.date ? y.ts - x.ts : (x.date < y.date ? 1 : -1));
+  if (!all.length) { elAssetList.innerHTML = '<div class="empty">暂无资产记录</div>'; return; }
+  /* 差额基准：按时间正序取每条的前一条 */
+  const sortedAsc = all.slice().sort((x, y) => x.date === y.date ? x.ts - y.ts : (x.date < y.date ? -1 : 1));
+  const prevByKey = {};
+  let prev = null;
+  for (const it of sortedAsc) { prevByKey[it.id] = prev; prev = it; }
+  elAssetList.innerHTML = all.map(a => {
+    const diff = prevByKey[a.id] ? round2(a.amount - prevByKey[a.id].amount) : null;
+    let tag = '';
+    if (diff !== null) {
+      tag = diff > 0 ? '<span class="tag tag-up">+' + diff + '</span>'
+          : diff < 0 ? '<span class="tag tag-down">' + diff + '</span>'
+          : '<span class="tag tag-flat">±0</span>';
+    }
+    return '<div class="item"><span class="grow"><b>¥' + fmtMoney(a.amount) + '</b> ' + tag +
+           (a.note ? '<div class="hint">' + esc(a.note) + '</div>' : '') + '</span>' +
+           '<span class="date">' + fmtTs(a.ts) + '</span>' +
+           '<button class="del" data-del-asset="' + a.id + '" data-del-asset-date="' + a.date + '" title="删除">✕</button></div>';
+  }).join('');
+}
+
+/* ③ 计划：按选中日期显示 */
+function renderPlans() {
+  $('#plan-date-hint').textContent = '计划日期：' + currentDate;
+  const rec = getRecord(currentDate);
+  if (!rec.plans.length) {
+    elPlanList.innerHTML = '<div class="empty">当天暂无计划</div>';
+  } else {
+    elPlanList.innerHTML = rec.plans.map(p =>
+      '<div class="item"><input type="checkbox" data-plan-toggle="' + p.id + '"' + (p.done ? ' checked' : '') + '>' +
+      '<span class="grow' + (p.done ? ' plan-done' : '') + '">' + esc(p.text) + '</span>' +
+      '<button class="del" data-del-plan="' + p.id + '" title="删除">✕</button></div>'
+    ).join('');
+  }
+  const done = rec.plans.filter(p => p.done).length;
+  elPlanStats.textContent = rec.plans.length ? '共 ' + rec.plans.length + ' 项 · 已完成 ' + done + ' 项' : '';
+}
+
+/* ④ 健康打卡：按选中日期显示两个勾选项 */
+function renderHealth() {
+  $('#health-date-hint').textContent = '打卡日期：' + currentDate;
+  const h = getRecord(currentDate).health;
+  elCheckMedicine.checked = h.medicine;
+  elCheckBrush.checked = h.brush;
+  $('#medicine-state').textContent = h.medicine ? '✅ 已抹药' : '';
+  $('#brush-state').textContent = h.brush ? '✅ 已刷牙' : '';
+  const done = (h.medicine ? 1 : 0) + (h.brush ? 1 : 0);
+  elHealthStats.textContent = done === 2 ? '当日两项打卡已完成 🎉'
+    : done === 0 ? '当日尚未打卡'
+    : '当日已完成 ' + done + '/2 项';
+}
+
+/* 备份区统计信息 */
+function renderStorageStats() {
+  let weight = 0, assets = 0, plans = 0, health = 0;
+  for (const r of DATA) {
+    if (r.weight !== null) weight++;
+    assets += r.assets.length;
+    plans += r.plans.length;
+    if (r.health.medicine || r.health.brush) health++;
+  }
+  elStorageStats.innerHTML =
+    '存储方式：' + backendName() + '（数据 100% 保存在本机浏览器，无任何网络请求）<br>' +
+    '统计：共 ' + DATA.length + ' 天有记录 · 体重 ' + weight + ' 条 · 资产 ' + assets + ' 条 · 计划 ' + plans + ' 项 · 健康打卡 ' + health + ' 天';
+}
+
+function renderAll() {
+  renderWeight(); renderAssets(); renderPlans(); renderHealth(); renderStorageStats();
+}
+
+/* ============ 事件绑定 ============ */
+/* 日期切换：‹ 前一天 › 后一天 / 今天 / 日期选择器 */
+function setCurrentDate(s) {
+  currentDate = s;
+  elDate.value = s;
+  renderAll();
+}
+elDate.addEventListener('change', () => setCurrentDate(elDate.value || todayStr()));
+$('#btn-prev').addEventListener('click', () => setCurrentDate(shiftDate(currentDate, -1)));
+$('#btn-next').addEventListener('click', () => setCurrentDate(shiftDate(currentDate, 1)));
+$('#btn-today').addEventListener('click', () => setCurrentDate(todayStr()));
+
+/* ① 体重保存（同一天重复录入会弹出覆盖确认，防止误改历史数据） */
+elWeightForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = round2(elWeightInput.value);
+  if (!Number.isFinite(v) || v <= 0) { toast('请输入有效的体重数值'); return; }
+  const existing = findRecord(currentDate);
+  if (existing && existing.weight !== null && existing.weight !== v) {
+    if (!confirm('该日期已有体重记录 ' + existing.weight + ' kg，是否覆盖为 ' + v + ' kg？')) return;
+  }
+  const rec = getRecord(currentDate);
+  rec.weight = v;
+  await saveRecord(rec);
+  elWeightInput.value = '';
+  toast('已保存 ' + currentDate + ' 体重 ' + v + ' kg');
+  renderAll();
+});
+/* 体重：单条删除 */
+elWeightList.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-del-weight]');
+  if (!btn) return;
+  const date = btn.getAttribute('data-del-weight');
+  if (!confirm('删除 ' + date + ' 的体重记录？')) return;
+  const rec = findRecord(date);
+  if (rec) { rec.weight = null; await saveOrPrune(rec); }
+  renderAll();
+  toast('已删除 ' + date + ' 的体重记录');
+});
+
+/* ② 资产保存（追加一条“当前总金额+备注”快照） */
+elAssetForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (elAssetInput.value.trim() === '') { toast('请输入金额'); return; }
+  const amount = round2(elAssetInput.value);
+  if (!Number.isFinite(amount)) { toast('请输入有效的金额'); return; }
+  const rec = getRecord(currentDate);
+  rec.assets.push({ id: uid(), amount, note: elAssetNote.value.trim(), ts: Date.now() });
+  await saveRecord(rec);
+  elAssetInput.value = '';
+  elAssetNote.value = '';
+  toast('已保存资产快照 ¥' + fmtMoney(amount));
+  renderAll();
+});
+/* 资产：单条删除（注意快照可能属于其它日期，按记录里的 date 定位） */
+elAssetList.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-del-asset]');
+  if (!btn) return;
+  const id = btn.getAttribute('data-del-asset');
+  const date = btn.getAttribute('data-del-asset-date');
+  if (!confirm('删除 ' + date + ' 的这条资产记录？')) return;
+  const rec = findRecord(date);
+  if (rec) {
+    rec.assets = rec.assets.filter(a => a.id !== id);
+    await saveOrPrune(rec);
+  }
+  renderAll();
+  toast('已删除资产记录');
+});
+
+/* ③ 计划：新增 / 勾选 / 删除（列表用事件委托） */
+elPlanForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = elPlanInput.value.trim();
+  if (!text) return;
+  const rec = getRecord(currentDate);
+  rec.plans.push({ id: uid(), text, done: false });
+  await saveRecord(rec);
+  elPlanInput.value = '';
+  renderAll();
+});
+elPlanList.addEventListener('change', async e => {
+  const cb = e.target.closest('[data-plan-toggle]');
+  if (!cb) return;
+  const rec = getRecord(currentDate);
+  const p = rec.plans.find(x => x.id === cb.getAttribute('data-plan-toggle'));
+  if (p) { p.done = cb.checked; await saveRecord(rec); }
+  renderAll();
+});
+elPlanList.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-del-plan]');
+  if (!btn) return;
+  const rec = getRecord(currentDate);
+  rec.plans = rec.plans.filter(p => p.id !== btn.getAttribute('data-del-plan'));
+  await saveOrPrune(rec);
+  renderAll();
+});
+
+/* ④ 健康打卡：勾选/取消即按日期保存 */
+elCheckMedicine.addEventListener('change', async () => {
+  const rec = getRecord(currentDate);
+  rec.health.medicine = elCheckMedicine.checked;
+  await saveOrPrune(rec);
+  renderHealth();
+});
+elCheckBrush.addEventListener('change', async () => {
+  const rec = getRecord(currentDate);
+  rec.health.brush = elCheckBrush.checked;
+  await saveOrPrune(rec);
+  renderHealth();
+});
+
+/* ===== 备份区：导出 / 导入 / 清空 ===== */
+$('#btn-export').addEventListener('click', downloadBackup);
+$('#btn-import').addEventListener('click', () => $('#import-file').click());
+$('#import-file').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';                       // 清空选择，允许重复选择同一文件
+  if (!file) return;
+  const text = await readFileAsText(file);
+  if (text === null) { toast('读取文件失败'); return; }
+  const res = await importBackup(text);
+  if (res.ok) { toast('导入成功，共 ' + res.count + ' 天的记录'); }
+  else { alert(res.error); }
+  renderAll();
+});
+$('#btn-clear').addEventListener('click', async () => {
+  const ok = await requestClearAll();
+  if (ok) { renderAll(); toast('已清空全部数据'); }
+});
+
+/* 读取本地文件为文本（现代浏览器用 file.text()，老浏览器用 FileReader 兜底） */
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    if (typeof file.text === 'function') { file.text().then(resolve, reject); return; }
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(fr.error);
+    fr.readAsText(file);
+  });
+}
+
+/* ============ 启动 ============ */
+(async function boot() {
+  await initStorage();
+  DATA = (await Storage.readAll()).map(sanitizeRecord).filter(hasContent);
+  elDate.value = currentDate;
+  renderAll();
+
+  /* 注册 Service Worker（离线缓存）。
+     注意：file:// 直接双击打开时浏览器不允许注册 SW（属正常现象，数据功能不受影响）；
+     要用到“离线可用 + 添加到手机桌面”，需通过 http(s) 访问（见 README.md）。 */
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err =>
+        console.warn('[生活记录] Service Worker 注册失败：', err));
+    });
+  }
+})();
+})();
+</script>
+</body>
+</html>
